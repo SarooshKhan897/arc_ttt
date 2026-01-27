@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Results and outputs
+results_*.jsonl
+submission_*.json
+old_result.jsonl
+*.jsonl
+
+# Notebooks with outputs (keep only clean test.ipynb)
+notebooks/test copy.ipynb
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
