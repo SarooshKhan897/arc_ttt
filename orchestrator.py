@@ -228,6 +228,9 @@ def solve_with_judge(
     start_time = time.time()
     reset_usage_stats()  # Reset global stats for backwards compatibility
     
+    # Always print task start (minimal)
+    print(f"[{task_id}] Starting...", end=" ", flush=True)
+    
     if verbose:
         print(f"\n{'='*60}")
         print(f"TRIPLE SOLVER x2 + JUDGE: Task {task_id}")
@@ -363,15 +366,23 @@ def solve_with_judge(
         futures[executor.submit(run_solver_with_shared_perception, run_phased_solver, "phased_1")] = "phased_1"
         futures[executor.submit(run_solver_with_shared_perception, run_phased_solver, "phased_2")] = "phased_2"
         
+        completed_solvers = []
         for future in as_completed(futures):
             solver_name = futures[future]
             try:
                 result = future.result()
                 outputs[solver_name] = result
                 solver_times[solver_name] = time.time() - phase1_start
+                # Minimal progress: show solver completed with checkmark or X
+                has_output = result.get("output") is not None
+                completed_solvers.append(solver_name.split("_")[0][0].upper())  # P, I, or P
+                if not verbose:
+                    print("✓" if has_output else "✗", end="", flush=True)
             except Exception as e:
                 if verbose:
                     print(f"  ⚠️ {solver_name} failed: {e}")
+                else:
+                    print("✗", end="", flush=True)
                 outputs[solver_name] = {
                     "output": None,
                     "info": {"solver": solver_name, "success": False, "error": str(e)}
@@ -689,6 +700,10 @@ def solve_with_judge(
         },
         "usage": usage,
     }
+    
+    # Minimal completion print (always)
+    if not verbose:
+        print(f" | {num_distinct}d {'J' if judge_used else ''} {total_time:.0f}s")
     
     if verbose:
         print(f"\n{'='*60}")
