@@ -22,6 +22,9 @@ REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "1800.0"))  # 30 min
 # Concurrency
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "100"))
 
+# Provider routing - restrict to anthropic only
+PROVIDER_CONFIG = {"provider": {"only": ["anthropic"]}}
+
 
 # =============================================================================
 # Role Definitions
@@ -42,57 +45,35 @@ class Role(Enum):
 
 # Default model assignments by role
 ROLE_MODELS = {
-    Role.PERCEIVER: os.getenv("PERCEIVER_MODEL", "google/gemini-3-pro-preview"),
-    Role.DIFFERENCER: os.getenv("DIFFERENCER_MODEL", "google/gemini-3-pro-preview"),
-    Role.SOLVER: os.getenv("SOLVER_MODEL", "openai/gpt-5.2"),
-    Role.VERIFIER: os.getenv("VERIFIER_MODEL", "openai/gpt-5.2"),
-    Role.SELF_VERIFIER: os.getenv("SELF_VERIFIER_MODEL", "openai/gpt-5.2"),
+    Role.PERCEIVER: os.getenv("PERCEIVER_MODEL", "anthropic/claude-opus-4.6"),
+    Role.DIFFERENCER: os.getenv("DIFFERENCER_MODEL", "anthropic/claude-opus-4.6"),
+    Role.SOLVER: os.getenv("SOLVER_MODEL", "anthropic/claude-opus-4.6"),
+    Role.VERIFIER: os.getenv("VERIFIER_MODEL", "anthropic/claude-opus-4.6"),
+    Role.SELF_VERIFIER: os.getenv("SELF_VERIFIER_MODEL", "anthropic/claude-opus-4.6"),
 }
 
 # Role-specific extra configurations (reasoning effort, etc.)
 ROLE_CONFIGS: dict[Role, dict[str, Any]] = {
     Role.PERCEIVER: {
-        "extra_body": {"reasoning": {"effort": "xhigh"}},
+        "extra_body": {"reasoning": {"enabled": True}},
     },
     Role.DIFFERENCER: {
-        "extra_body": {"reasoning": {"effort": "xhigh"}},
+        "extra_body": {"reasoning": {"enabled": True}},
     },
 }
 
 # Model-specific configurations for the solver models
 SOLVER_MODELS = [
     {
-        "id": "gpt-5.2",
-        "model": "openai/gpt-5.2",
-        "extra_body": {"reasoning": {"effort": "xhigh"}},
-        "max_tokens": 120000,
+        "id": "claude-opus-4.6",
+        "model": "anthropic/claude-opus-4.6",
+        "extra_body": {"reasoning": {"enabled": True}},
         "tries": 5,
-    },
-    {
-        "id": "gpt-5.2-high",
-        "model": "openai/gpt-5.2",
-        "extra_body": {"reasoning": {"effort": "high"}},
-        "max_tokens": 120000,
-        "tries": 5,
-    },
-    {
-        "id": "claude-opus-4.5",
-        "model": "anthropic/claude-opus-4.5",
-        "extra_body": {"reasoning": {"effort": "high"}},
-        "max_tokens": 120000,
-        "tries": 10,
-    },
-    {
-        "id": "gemini-pro",
-        "model": "google/gemini-3-pro-preview",
-        "extra_body": {"reasoning": {"effort": "xhigh"}},
-        "max_tokens": None,
-        "tries": 10,
     },
 ]
 
 # Default model for tool-based solver
-TOOL_SOLVER_MODEL_ID = os.getenv("TOOL_SOLVER_MODEL", "gpt-5.2")
+TOOL_SOLVER_MODEL_ID = os.getenv("TOOL_SOLVER_MODEL", "claude-opus-4.6")
 
 # =============================================================================
 # Solver Settings
@@ -104,10 +85,7 @@ MIN_CONFIDENCE_SCORE = 90   # Minimum score to count as high-confidence
 # Model ranking for fallback selection (lower index = higher priority)
 # Used when no self-verified solutions, pick training-passed by this order
 MODEL_RANK = [
-    "gpt-5.2",           # Highest priority (xhigh reasoning)
-    "gpt-5.2-high",      # Second priority (high reasoning fallback)
-    "gemini-flash",      # Third priority
-    "gemini-pro",        # Fourth priority
+    "claude-opus-4.6",         # Highest priority
 ]
 
 
@@ -125,11 +103,10 @@ def get_model_config(model_id: str) -> dict[str, Any] | None:
 
 def get_role_model(role: Role) -> str:
     """Get the model assigned to a specific role."""
-    return ROLE_MODELS.get(role, "openai/gpt-5.2")
+    return ROLE_MODELS.get(role, "anthropic/claude-opus-4.6")
 
 
 def get_role_extra_body(role: Role) -> dict[str, Any] | None:
     """Get extra_body config for a specific role (e.g., reasoning effort)."""
     config = ROLE_CONFIGS.get(role, {})
     return config.get("extra_body")
-

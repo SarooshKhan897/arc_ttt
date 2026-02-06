@@ -10,8 +10,9 @@ submission_*.json
 old_result.jsonl
 *.jsonl
 
-# Notebooks with outputs (keep only clean test.ipynb)
-notebooks/test copy.ipynb
+# Notebooks (exclude all except eval_submission.ipynb)
+notebooks/*.ipynb
+!notebooks/eval_submission.ipynb
 
 # Environment
 .env

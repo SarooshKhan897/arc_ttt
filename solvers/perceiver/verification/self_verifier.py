@@ -273,7 +273,7 @@ def self_verify(
     )
 
     # Use HIGH reasoning for self-verification (always)
-    verify_extra_body = {"reasoning": {"effort": "high"}}
+    verify_extra_body = {"reasoning": {"enabled": True}}
 
     response, elapsed = call_llm(
         model=model,

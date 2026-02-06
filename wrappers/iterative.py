@@ -21,7 +21,6 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
     CLAUDE_V3_MODEL,
-    CLAUDE_V3_REASONING_EFFORT,
     CLAUDE_V3_MAX_ITERATIONS,
 )
 from solvers.iterative.solver import ARCSolver
@@ -63,9 +62,7 @@ def run_iterative_solver(
             base_url=OPENROUTER_BASE_URL,
             max_iterations=CLAUDE_V3_MAX_ITERATIONS,
             verbose=verbose,
-            reasoning_effort=CLAUDE_V3_REASONING_EFFORT,
             hypothesis_model=CLAUDE_V3_MODEL,
-            hypothesis_reasoning_effort=CLAUDE_V3_REASONING_EFFORT,
         )
         
         # Run the solver

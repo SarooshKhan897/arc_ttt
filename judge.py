@@ -26,7 +26,7 @@ from config import (
     REQUEST_TIMEOUT,
     JUDGE_MODEL,
     JUDGE_EXTRA_BODY,
-    JUDGE_MAX_TOKENS,
+    PROVIDER_CONFIG,
     record_usage,
 )
 
@@ -205,9 +205,10 @@ def run_judge(
         print(f"  🧑‍⚖️ Judge Phase: Evaluating {len(outputs)} candidate outputs...")
     
     try:
-        # IMPORTANT: Merge extra_body with usage tracking
+        # IMPORTANT: Merge extra_body with usage tracking and provider config
         merged_extra_body = JUDGE_EXTRA_BODY.copy() if JUDGE_EXTRA_BODY else {}
         merged_extra_body["usage"] = {"include": True}
+        merged_extra_body.update(PROVIDER_CONFIG)
         
         response = client.chat.completions.create(
             model=JUDGE_MODEL,
@@ -217,7 +218,6 @@ def run_judge(
             ],
             tools=[JUDGE_TOOL],
             tool_choice={"type": "function", "function": {"name": "submit_ratings"}},
-            max_tokens=JUDGE_MAX_TOKENS,
             extra_body=merged_extra_body,
         )
         

@@ -12,6 +12,7 @@ from solvers.perceiver.config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
     REQUEST_TIMEOUT,
+    PROVIDER_CONFIG,
 )
 
 # Max workers for ThreadPoolExecutor
@@ -467,9 +468,10 @@ def call_llm_with_tools(
             if response_format:
                 kwargs["response_format"] = response_format
 
-            # IMPORTANT: Include usage tracking in extra_body
+            # IMPORTANT: Include usage tracking and provider config in extra_body
             merged_extra_body = extra_body.copy() if extra_body else {}
             merged_extra_body["usage"] = {"include": True}
+            merged_extra_body.update(PROVIDER_CONFIG)
             kwargs["extra_body"] = merged_extra_body
 
             response = client.chat.completions.create(**kwargs)
@@ -540,9 +542,10 @@ def call_llm_with_history(
                 "messages": messages,
             }
 
-            # IMPORTANT: Include usage tracking in extra_body
+            # IMPORTANT: Include usage tracking and provider config in extra_body
             merged_extra_body = extra_body.copy() if extra_body else {}
             merged_extra_body["usage"] = {"include": True}
+            merged_extra_body.update(PROVIDER_CONFIG)
             kwargs["extra_body"] = merged_extra_body
             
             if max_tokens:

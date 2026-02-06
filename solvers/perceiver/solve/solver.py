@@ -15,9 +15,9 @@ from solvers.perceiver.solve.prompt import SOLVER_SYSTEM, generate_prompt, gener
 from solvers.perceiver.verification.self_verifier import self_verify
 from solvers.perceiver.utils.trace import TRACE_LOGGER
 
-# Fixed self-verification model (always gpt-5.2 with high reasoning)
-SELF_VERIFY_MODEL = "openai/gpt-5.2"
-SELF_VERIFY_EXTRA_BODY = {"reasoning": {"effort": "high"}}
+# Fixed self-verification model (always claude-opus-4.6 with adaptive reasoning)
+SELF_VERIFY_MODEL = "anthropic/claude-opus-4.6"
+SELF_VERIFY_EXTRA_BODY = {"reasoning": {"enabled": True}}
 
 
 # =============================================================================
@@ -302,7 +302,7 @@ def solve_single_exhaustive(
         """Self-verify a single solution and return a SolutionCandidate."""
         sv_result = self_verify(
             model=SELF_VERIFY_MODEL,
-            model_id="gpt-5.2",
+            model_id="claude-opus-4.6",
             extra_body=SELF_VERIFY_EXTRA_BODY,
             max_tokens=None,
             code=sol['code'],
@@ -356,7 +356,7 @@ def solve_with_models(
     observations: dict[str, Any] | None = None,
     key_insight: str | None = None,
     models: list[dict[str, Any]] | None = None,
-    primary_model_id: str = "gpt-5.2",
+    primary_model_id: str = "claude-opus-4.6",
     target_solutions: int = 2,
     verbose: bool = True,
 ) -> list[SolutionCandidate]:
@@ -364,7 +364,7 @@ def solve_with_models(
     Solve a task with exhaustive primary model + smart fallback.
 
     Strategy:
-    1. Run primary model (gpt-5.2) exhaustively - collect ALL solutions
+    1. Run primary model (claude-opus-4.6) exhaustively - collect ALL solutions
     2. Self-verify all solutions, filter for score >= 90
     3. If we have 2+ high-confidence solutions, pick top 2 by score
     4. If < 2, run fallback models until we have 2 total (max 10 tries each)
@@ -378,7 +378,7 @@ def solve_with_models(
         observations: Task-level observations
         key_insight: Key insight about the puzzle
         models: List of model configs (defaults to SOLVER_MODELS)
-        primary_model_id: ID of the primary model (default: gpt-5.2)
+        primary_model_id: ID of the primary model (default: claude-opus-4.6)
         target_solutions: Number of high-confidence solutions needed (default: 2)
         verbose: Whether to print progress
 
@@ -517,7 +517,7 @@ def solve_with_models(
 
                 sv_result = self_verify(
                     model=SELF_VERIFY_MODEL,
-                    model_id="gpt-5.2",
+                    model_id="claude-opus-4.6",
                     extra_body=SELF_VERIFY_EXTRA_BODY,
                     max_tokens=None,
                     code=parsed['code'],

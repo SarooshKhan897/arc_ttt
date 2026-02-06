@@ -802,6 +802,224 @@ def solve_batch_with_judge(
     return results
 
 
+# =============================================================================
+# Iterative-Only Solver (2 runs, no judge)
+# =============================================================================
+
+def solve_iterative_only(
+    task_data: dict,
+    task_id: str = "unknown",
+    ground_truths: list[np.ndarray] | None = None,
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """
+    Solve an ARC task using ONLY the iterative solver (2 runs).
+    
+    Simple approach:
+    1. Run iterative solver twice in parallel
+    2. Use the two outputs directly as attempt_1 and attempt_2
+    
+    No judge needed since we only have 2 attempts.
+    
+    Args:
+        task_data: Task with 'train' and 'test' keys
+        task_id: Task identifier
+        ground_truths: Optional ground truth outputs for verification
+        verbose: Whether to print progress
+        
+    Returns:
+        Dict with attempt_1, attempt_2, scores, timing, usage
+    """
+    start_time = time.time()
+    reset_usage_stats()
+    
+    # Always print task start
+    print(f"[{task_id}] Starting...", end=" ", flush=True)
+    
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"ITERATIVE SOLVER x2: Task {task_id}")
+        print(f"{'='*60}")
+        print(f"\n🚀 Running iterative solver twice in parallel...")
+    
+    outputs = {}
+    solver_times = {}
+    phase1_start = time.time()
+    
+    # Run iterative solver twice in parallel
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(run_iterative_solver, task_data, task_id, verbose): "iterative_1",
+            executor.submit(run_iterative_solver, task_data, task_id, verbose): "iterative_2",
+        }
+        
+        for future in as_completed(futures):
+            solver_name = futures[future]
+            try:
+                result = future.result()
+                outputs[solver_name] = result
+                solver_times[solver_name] = time.time() - phase1_start
+                has_output = result.get("output") is not None
+                if not verbose:
+                    print("✓" if has_output else "✗", end="", flush=True)
+            except Exception as e:
+                if verbose:
+                    print(f"  ⚠️ {solver_name} failed: {e}")
+                else:
+                    print("✗", end="", flush=True)
+                outputs[solver_name] = {
+                    "output": None,
+                    "info": {"solver": solver_name, "success": False, "error": str(e)}
+                }
+                solver_times[solver_name] = time.time() - phase1_start
+    
+    phase1_time = time.time() - phase1_start
+    
+    if verbose:
+        print(f"\n  ⏱️ Solvers completed in {phase1_time:.1f}s")
+        print(f"    Iterative #1: {solver_times.get('iterative_1', 0):.1f}s")
+        print(f"    Iterative #2: {solver_times.get('iterative_2', 0):.1f}s")
+    
+    # Extract outputs - attempt_1 from iterative_1, attempt_2 from iterative_2
+    attempt_1 = outputs.get("iterative_1", {}).get("output")
+    attempt_2 = outputs.get("iterative_2", {}).get("output")
+    attempt_1_source = "iterative_1" if attempt_1 else None
+    attempt_2_source = "iterative_2" if attempt_2 else None
+    
+    # If one is missing, use the other for both
+    if attempt_1 is None and attempt_2 is not None:
+        attempt_1 = attempt_2
+        attempt_1_source = "iterative_2"
+    elif attempt_2 is None and attempt_1 is not None:
+        attempt_2 = attempt_1
+        attempt_2_source = "iterative_1"
+    
+    # Score if ground truths provided
+    scores = {}
+    if ground_truths:
+        n_tests = len(ground_truths)
+        
+        for attempt_num, (attempt, source) in enumerate([(attempt_1, attempt_1_source), (attempt_2, attempt_2_source)], 1):
+            if attempt is None:
+                scores[f"attempt_{attempt_num}"] = {"correct": False, "source": source, "tests_correct": 0, "total_tests": n_tests}
+                continue
+            
+            if n_tests == 1:
+                attempt_arr = np.array(attempt)
+                gt_arr = np.array(ground_truths[0])
+                if attempt_arr.shape == gt_arr.shape and np.array_equal(attempt_arr, gt_arr):
+                    scores[f"attempt_{attempt_num}"] = {"correct": True, "source": source, "tests_correct": 1, "total_tests": 1}
+                else:
+                    scores[f"attempt_{attempt_num}"] = {"correct": False, "source": source, "tests_correct": 0, "total_tests": 1}
+            else:
+                is_list_of_grids = (
+                    isinstance(attempt, list) and 
+                    len(attempt) > 0 and 
+                    isinstance(attempt[0], list) and 
+                    len(attempt[0]) > 0 and
+                    isinstance(attempt[0][0], list)
+                )
+                
+                if not is_list_of_grids:
+                    attempt_arr = np.array(attempt)
+                    gt_arr = np.array(ground_truths[0])
+                    tests_correct = 1 if (attempt_arr.shape == gt_arr.shape and np.array_equal(attempt_arr, gt_arr)) else 0
+                    scores[f"attempt_{attempt_num}"] = {
+                        "correct": tests_correct == n_tests,
+                        "source": source,
+                        "tests_correct": tests_correct,
+                        "total_tests": n_tests,
+                        "partial": tests_correct > 0 and tests_correct < n_tests
+                    }
+                else:
+                    tests_correct = 0
+                    for i, gt in enumerate(ground_truths):
+                        if i < len(attempt):
+                            attempt_arr = np.array(attempt[i])
+                            gt_arr = np.array(gt)
+                            if attempt_arr.shape == gt_arr.shape and np.array_equal(attempt_arr, gt_arr):
+                                tests_correct += 1
+                    
+                    scores[f"attempt_{attempt_num}"] = {
+                        "correct": tests_correct == n_tests,
+                        "source": source,
+                        "tests_correct": tests_correct,
+                        "total_tests": n_tests,
+                        "partial": tests_correct > 0 and tests_correct < n_tests
+                    }
+    
+    total_time = time.time() - start_time
+    
+    # Aggregate usage
+    usage = aggregate_usage(outputs)
+    
+    # Update global tracker
+    usage_for_tracker = {
+        "prompt_tokens": usage.get("total_prompt_tokens", 0),
+        "completion_tokens": usage.get("total_completion_tokens", 0),
+        "total_tokens": usage.get("total_tokens", 0),
+        "cost": usage.get("total_cost", 0.0),
+        "is_byok": usage.get("is_byok", False),
+        "completion_tokens_details": {"reasoning_tokens": usage.get("total_reasoning_tokens", 0)},
+        "prompt_tokens_details": {"cached_tokens": usage.get("total_cached_tokens", 0)},
+        "cost_details": {
+            "upstream_inference_cost": usage.get("upstream_cost", 0.0),
+            "upstream_inference_prompt_cost": usage.get("upstream_prompt_cost", 0.0),
+            "upstream_inference_completions_cost": usage.get("upstream_completion_cost", 0.0),
+        },
+    }
+    record_usage(usage_for_tracker)
+    
+    result = {
+        "attempt_1": attempt_1,
+        "attempt_2": attempt_2,
+        "attempt_1_source": attempt_1_source,
+        "attempt_2_source": attempt_2_source,
+        "all_outputs": outputs,
+        "num_distinct": len(set(grid_to_hash(outputs.get(k, {}).get("output")) for k in ["iterative_1", "iterative_2"])),
+        "total_candidates": 2,
+        "judge_used": False,
+        "ratings": [],
+        "scores": scores,
+        "timing": {
+            "phase_1": phase1_time,
+            "total": total_time,
+            "solver_times": solver_times,
+        },
+        "usage": usage,
+    }
+    
+    # Completion print
+    if not verbose:
+        print(f" | {total_time:.0f}s")
+    
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"RESULT SUMMARY")
+        print(f"{'='*60}")
+        print(f"  Attempt 1: {attempt_1_source} {'✓' if attempt_1 else '✗'}")
+        print(f"  Attempt 2: {attempt_2_source} {'✓' if attempt_2 else '✗'}")
+        
+        if scores:
+            print(f"\n  Scores:")
+            for k, v in scores.items():
+                tests_correct = v.get('tests_correct', 0)
+                total_tests = v.get('total_tests', 1)
+                if v.get('correct'):
+                    status = f"✓ CORRECT ({tests_correct}/{total_tests})"
+                elif v.get('partial'):
+                    status = f"⚠️ PARTIAL ({tests_correct}/{total_tests})"
+                else:
+                    status = f"✗ wrong ({tests_correct}/{total_tests})"
+                print(f"    {k}: {status} ({v.get('source')})")
+        
+        print(f"\n  Total time: {total_time:.1f}s")
+        print(f"  Total cost: ${usage.get('effective_cost', 0):.4f}")
+        print(f"{'='*60}\n")
+    
+    return result
+
+
 if __name__ == "__main__":
     # Test with a simple task
     test_task = {

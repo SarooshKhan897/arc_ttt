@@ -107,7 +107,7 @@ async def verify(
         model=model,
         system_prompt=VERIFIER_SYSTEM,
         user_prompt=prompt,
-        extra_body={"reasoning": {"effort": "high"}},
+        extra_body={"reasoning": {"enabled": True}},
     )
 
     # Parse response

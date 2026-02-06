@@ -11,7 +11,7 @@ test input pre-loaded in the execution environment.
 Usage:
     from solver import ARCSolver
     
-    solver = ARCSolver(api_key="your-openrouter-key", model="anthropic/claude-sonnet-4")
+    solver = ARCSolver(api_key="your-openrouter-key", model="anthropic/claude-opus-4.6")
     result = solver.solve(task_data)
 """
 
@@ -34,6 +34,9 @@ from typing import Any
 from openai import OpenAI
 import numpy as np
 from scipy import ndimage
+
+# Import provider config for routing
+from config import PROVIDER_CONFIG
 
 
 # =============================================================================
@@ -396,8 +399,7 @@ Evidence: [Why this could work]
         "max_tokens": 120000,  # Allow full reasoning with extended thinking models
     }
     
-    if reasoning_effort:
-        api_kwargs["extra_body"] = {"reasoning": {"effort": reasoning_effort}}
+    api_kwargs["extra_body"] = {"reasoning": {"enabled": True}, **PROVIDER_CONFIG}
     
     try:
         response = _call_with_retry(
@@ -521,7 +523,7 @@ class ARCSolver:
     def __init__(
         self,
         api_key: str,
-        model: str = "anthropic/claude-sonnet-4",
+        model: str = "anthropic/claude-opus-4.6",
         base_url: str = "https://openrouter.ai/api/v1",
         max_iterations: int = 20,
         verbose: bool = True,
@@ -2471,10 +2473,7 @@ These are SHORTCUTS that work on training but break on test inputs with natural 
             "max_tokens": 120000
         }
         
-        if self.reasoning_effort:
-            observe_api_kwargs["extra_body"] = {
-                "reasoning": {"effort": self.reasoning_effort}
-            }
+        observe_api_kwargs["extra_body"] = {"reasoning": {"enabled": True}, **PROVIDER_CONFIG}
         
         try:
             observe_response = _call_with_retry(
@@ -2483,7 +2482,11 @@ These are SHORTCUTS that work on training but break on test inputs with natural 
             self._track_usage(observe_response)
             
             observe_message = observe_response.choices[0].message
-            messages.append(observe_message.model_dump())
+            # Sanitize message to ensure content is not None (Anthropic requirement)
+            msg = observe_message.model_dump()
+            if msg.get("content") is None:
+                msg["content"] = ""
+            messages.append(msg)
             
             # Process the forced observe_examples call
             if observe_message.tool_calls:
@@ -2556,10 +2559,7 @@ These are SHORTCUTS that work on training but break on test inputs with natural 
                 "max_tokens": 120000
             }
             
-            if self.reasoning_effort:
-                api_kwargs["extra_body"] = {
-                    "reasoning": {"effort": self.reasoning_effort}
-                }
+            api_kwargs["extra_body"] = {"reasoning": {"enabled": True}, **PROVIDER_CONFIG}
             
             # Call with retry for transient JSON decode errors
             response = _call_with_retry(
@@ -2568,7 +2568,11 @@ These are SHORTCUTS that work on training but break on test inputs with natural 
             self._track_usage(response)
             
             assistant_message = response.choices[0].message
-            messages.append(assistant_message.model_dump())
+            # Sanitize message to ensure content is not None (Anthropic requirement)
+            msg = assistant_message.model_dump()
+            if msg.get("content") is None:
+                msg["content"] = ""
+            messages.append(msg)
             
             if self.verbose and assistant_message.content:
                 print(f"\nModel reasoning:\n{truncate(assistant_message.content)}")
@@ -2882,10 +2886,7 @@ Be precise. Double-check before submitting. Your answer must be valid Python lis
                 "max_tokens": 120000
             }
             
-            if self.reasoning_effort:
-                final_api_kwargs["extra_body"] = {
-                    "reasoning": {"effort": self.reasoning_effort}
-                }
+            final_api_kwargs["extra_body"] = {"reasoning": {"enabled": True}, **PROVIDER_CONFIG}
             
             try:
                 final_response = _call_with_retry(
@@ -3072,7 +3073,7 @@ Be precise. Double-check before submitting. Your answer must be valid Python lis
 def solve_task(
     task: dict,
     api_key: str,
-    model: str = "anthropic/claude-sonnet-4",
+    model: str = "anthropic/claude-opus-4.6",
     verbose: bool = True
 ) -> dict:
     """Quick function to solve an ARC task."""

@@ -37,6 +37,7 @@ from solvers.perceiver.config import (
     REQUEST_TIMEOUT,
     SOLVER_MODELS,
     TOOL_SOLVER_MODEL_ID,
+    PROVIDER_CONFIG,
 )
 
 
@@ -78,7 +79,7 @@ class ToolSolver:
         
         Args:
             model_config: Model configuration dict (from SOLVER_MODELS)
-            model: Model name to use (e.g., "anthropic/claude-opus-4.5")
+            model: Model name to use (e.g., "anthropic/claude-opus-4.6")
             max_retries: Max retries if verification fails
             verbose: Whether to print progress
         """
@@ -95,7 +96,7 @@ class ToolSolver:
                     self.model_config = cfg
                     break
             if not self.model_config:
-                self.model_config = {"id": "custom", "model": model, "max_tokens": 120000}
+                self.model_config = {"id": "custom", "model": model}
         else:
             # Use first solver model as default
             self.model_config = SOLVER_MODELS[0]
@@ -133,9 +134,10 @@ class ToolSolver:
         if self.max_tokens:
             kwargs["max_tokens"] = self.max_tokens
         
-        # Merge extra_body with usage tracking
+        # Merge extra_body with usage tracking and provider config
         merged_extra_body = self.extra_body.copy() if self.extra_body else {}
         merged_extra_body["usage"] = {"include": True}
+        merged_extra_body.update(PROVIDER_CONFIG)
         kwargs["extra_body"] = merged_extra_body
         
         if tools:
@@ -658,20 +660,13 @@ def solve_task_with_tools(
                         grid_correct_count += 1
                 
                 # Decide which prediction to use
-                # Priority: correct code > correct grid > code output > predicted grid > test input
-                if code_is_correct and code_output is not None:
+                # Priority: code output > fallback (ignore predicted grid to match Kaggle behavior)
+                # Note: ground truth checking above is for logging/metrics only, not selection
+                if code_output is not None:
                     predictions.append(code_output)
-                    final_source.append("code_correct")
-                elif grid_is_correct and predicted_grid is not None:
-                    predictions.append(predicted_grid)
-                    final_source.append("grid_correct")
-                elif code_output is not None:
-                    predictions.append(code_output)
-                    final_source.append("code")
-                elif predicted_grid is not None:
-                    predictions.append(predicted_grid)
-                    final_source.append("grid")
+                    final_source.append("code_correct" if code_is_correct else "code")
                 else:
+                    # Code failed to execute - use test input as fallback
                     predictions.append(test_inputs[i] if i < n_tests else test_inputs[0])
                     final_source.append("fallback")
             
@@ -701,6 +696,91 @@ def solve_task_with_tools(
                     print(f"  Code outputs correct:    {code_correct_count}/{n_tests}")
                     print(f"  Predicted grids correct: {grid_correct_count}/{n_tests}")
                     print(f"  Final sources: {final_source}")
+            
+            return predictions, info
+        elif result.get("success") and result.get("code") and not result.get("predictions"):
+            # Code exists but no predicted grids - execute code directly on test inputs
+            if verbose:
+                print(f"\n⚠️ No predicted grids, but code exists - executing code directly...")
+            
+            code = result["code"]
+            predictions = []
+            code_correct_count = 0
+            final_source = []
+            
+            # Execute code on each test input
+            for i, test_case in enumerate(test_inputs):
+                test_input = np.array(test_case['input'])
+                
+                try:
+                    # Set up execution environment
+                    exec_globals = {"np": np}
+                    try:
+                        from scipy import ndimage
+                        exec_globals["ndimage"] = ndimage
+                    except ImportError:
+                        pass
+                    
+                    exec(code, exec_globals)
+                    
+                    if "transform" in exec_globals:
+                        transform = exec_globals["transform"]
+                        code_output = transform(test_input.copy())
+                        
+                        if isinstance(code_output, np.ndarray):
+                            predictions.append(code_output)
+                            final_source.append("code_direct")
+                            
+                            # Check against ground truth if available
+                            if ground_truths is not None and i < len(ground_truths):
+                                if np.array_equal(code_output, ground_truths[i]):
+                                    code_correct_count += 1
+                                    if verbose:
+                                        print(f"  Test {i+1}: ✓ Code output CORRECT")
+                                else:
+                                    if verbose:
+                                        print(f"  Test {i+1}: ✗ Code output wrong")
+                            else:
+                                if verbose:
+                                    print(f"  Test {i+1}: ✓ Code executed successfully")
+                        else:
+                            # Code output not a valid array
+                            predictions.append(test_input)
+                            final_source.append("fallback")
+                            if verbose:
+                                print(f"  Test {i+1}: ✗ Code output not a valid array")
+                    else:
+                        # No transform function
+                        predictions.append(test_input)
+                        final_source.append("fallback")
+                        if verbose:
+                            print(f"  Test {i+1}: ✗ No transform function defined")
+                            
+                except Exception as e:
+                    # Code execution failed
+                    predictions.append(test_input)
+                    final_source.append("fallback")
+                    if verbose:
+                        print(f"  Test {i+1}: ✗ Execution error: {str(e)[:50]}")
+            
+            info = {
+                "source": "tool_solver_code_only",
+                "success": True,
+                "phases_completed": result.get("phases_completed", []),
+                "code_matches_prediction": None,  # No predictions to compare
+                "model": model_config["id"] if model_config else "default",
+                "code_correct_count": code_correct_count,
+                "grid_correct_count": 0,
+                "final_source": final_source,
+            }
+            
+            if verbose:
+                print(f"\n{'='*60}")
+                print(f"SOLUTION SUMMARY (Code-Only Fallback)")
+                print(f"{'='*60}")
+                if ground_truths is not None:
+                    print(f"  Code outputs correct: {code_correct_count}/{n_tests}")
+                print(f"  Final sources: {final_source}")
             
             return predictions, info
         else:

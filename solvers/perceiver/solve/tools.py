@@ -732,17 +732,24 @@ def handle_implement_response(response: dict[str, Any]) -> dict[str, Any]:
     
     Returns both the code and predicted grids for verification.
     """
+    # Safely process predicted outputs, skipping malformed entries
+    predicted_outputs = []
+    for pred in response.get("predicted_outputs", []):
+        if not isinstance(pred, dict):
+            continue  # Skip malformed entries (e.g., strings)
+        try:
+            predicted_outputs.append({
+                "test_number": pred.get("test_number", 1),
+                "grid": np.array(pred.get("predicted_grid", [[0]])),
+                "reasoning": pred.get("reasoning", "")
+            })
+        except (KeyError, TypeError, ValueError):
+            continue  # Skip entries that can't be processed
+    
     return {
         "explanation": response.get("explanation", ""),
         "code": response.get("python_code", ""),
-        "predicted_outputs": [
-            {
-                "test_number": pred["test_number"],
-                "grid": np.array(pred["predicted_grid"]),
-                "reasoning": pred.get("reasoning", "")
-            }
-            for pred in response.get("predicted_outputs", [])
-        ],
+        "predicted_outputs": predicted_outputs,
         "edge_cases": response.get("edge_cases_handled", [])
     }
 

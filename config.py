@@ -22,21 +22,22 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 REQUEST_TIMEOUT = 1800.0  # 30 min
 MAX_WORKERS = 50
 
+# Provider routing - restrict to anthropic only
+PROVIDER_CONFIG = {"provider": {"only": ["anthropic"]}}
+
 # =============================================================================
 # Shared Hypothesis Model (Phase 0)
 # =============================================================================
 
-HYPOTHESIS_MODEL = "openai/gpt-5.2"
-HYPOTHESIS_EXTRA_BODY = {"reasoning": {"effort": "xhigh"}}
-HYPOTHESIS_MAX_TOKENS = 120000
+HYPOTHESIS_MODEL = "anthropic/claude-opus-4.6"
+HYPOTHESIS_EXTRA_BODY = {"reasoning": {"enabled": True}}
 
 # =============================================================================
 # Judge Model
 # =============================================================================
 
-JUDGE_MODEL = "openai/gpt-5.2"
-JUDGE_EXTRA_BODY = {"reasoning": {"effort": "xhigh"}}
-JUDGE_MAX_TOKENS = 120000
+JUDGE_MODEL = "anthropic/claude-opus-4.6"
+JUDGE_EXTRA_BODY = {"reasoning": {"enabled": True}}
 
 # =============================================================================
 # Arc-Solver Model Configs
@@ -44,10 +45,9 @@ JUDGE_MAX_TOKENS = 120000
 
 ARC_SOLVER_MODELS = [
     {
-        "id": "gpt-5.2-xhigh",
-        "model": "openai/gpt-5.2",
-        "extra_body": {"reasoning": {"effort": "xhigh"}},
-        "max_tokens": 120000,
+        "id": "claude-opus-4.6",
+        "model": "anthropic/claude-opus-4.6",
+        "extra_body": {"reasoning": {"enabled": True}},
         "tries": 5,
     },
 ]
@@ -57,26 +57,24 @@ ARC_SOLVER_MODELS = [
 # =============================================================================
 
 TOOL_SOLVER_MODEL = {
-    "id": "gpt-5.2-xhigh",
-    "model": "openai/gpt-5.2",
-    "extra_body": {"reasoning": {"effort": "xhigh"}},
-    "max_tokens": 120000,
+    "id": "claude-opus-4.6",
+    "model": "anthropic/claude-opus-4.6",
+    "extra_body": {"reasoning": {"enabled": True}},
 }
 
 # =============================================================================
 # Claude V3 Solver Model
 # =============================================================================
 
-CLAUDE_V3_MODEL = "openai/gpt-5.2"
-CLAUDE_V3_REASONING_EFFORT = "xhigh"
+CLAUDE_V3_MODEL = "anthropic/claude-opus-4.6"
 CLAUDE_V3_MAX_ITERATIONS = 25
 
 # =============================================================================
 # Perceiver/Differencer models
 # =============================================================================
 
-PERCEIVER_MODEL = "google/gemini-3-pro-preview"
-PERCEIVER_EXTRA_BODY = {"reasoning": {"effort": "xhigh"}}
+PERCEIVER_MODEL = "anthropic/claude-opus-4.6"
+PERCEIVER_EXTRA_BODY = {"reasoning": {"enabled": True}}
 
 # =============================================================================
 # Cost Tracking
