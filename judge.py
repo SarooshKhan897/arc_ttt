@@ -218,6 +218,7 @@ def run_judge(
             ],
             tools=[JUDGE_TOOL],
             tool_choice={"type": "function", "function": {"name": "submit_ratings"}},
+            max_tokens=120000,
             extra_body=merged_extra_body,
         )
         

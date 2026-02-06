@@ -68,6 +68,7 @@ SOLVER_MODELS = [
         "id": "claude-opus-4.6",
         "model": "anthropic/claude-opus-4.6",
         "extra_body": {"reasoning": {"enabled": True}},
+        "max_tokens": 120000,
         "tries": 5,
     },
 ]
