@@ -397,9 +397,10 @@ def call_llm(
                 ],
             }
 
-            # IMPORTANT: Include usage tracking in extra_body
+            # IMPORTANT: Include usage tracking and provider config in extra_body
             merged_extra_body = extra_body.copy() if extra_body else {}
             merged_extra_body["usage"] = {"include": True}
+            merged_extra_body.update(PROVIDER_CONFIG)
             kwargs["extra_body"] = merged_extra_body
             
             if max_tokens:
